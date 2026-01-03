@@ -92,8 +92,9 @@ async def start_listener():
     logger.info("Registering handlers...")
     
     # Message Handlers
+    # Filter: DMs OR Mentions OR Saved Messages
     app.add_handler(handlers.MessageHandler(message_handler, 
-        filters.private | filters.user("me") | filters.outgoing | filters.incoming
+        filters.private | filters.mentioned | filters.chat("me")
     ), group=0)
 
     # Start the client
