@@ -14,7 +14,7 @@ class Agent:
         
         genai.configure(api_key=self.api_key)
         try:
-            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            self.model = genai.GenerativeModel('gemini-3-flash-preview')
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             # Fallback to listing models to debug

@@ -30,10 +30,10 @@ async def message_handler(client, message):
     sender = message.chat.title if message.chat.title else message.chat.first_name
     logger.info(f"Processing message from {sender}...")
 
-    # Fetch recent context (last 5 messages) for better analysis
+    # Fetch recent context (last 10 messages) for better analysis
     history = []
     try:
-        async for msg in client.get_chat_history(message.chat.id, limit=5):
+        async for msg in client.get_chat_history(message.chat.id, limit=10):
             sender_name = msg.chat.title or msg.from_user.first_name or "Unknown"
             if msg.from_user:
                 sender_name = msg.from_user.first_name
