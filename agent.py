@@ -31,15 +31,20 @@ class Agent:
             return {"priority": 0, "summary": "No API Key", "action_required": False}
 
         prompt = f"""
-        You are a personal assistant. Analyze the following Telegram message.
+        You are a personal assistant. Analyze the following Chat History.
         
-        Sender: {sender_info}
-        Message: "{message_text}"
+        Chat Context:
+        {message_text}
         
         Task:
-        1. Rate urgency/importance from 0 to 10 (10 is critical emergency, 0 is spam).
-        2. Summarize the content in one brief sentence.
-        3. Decide if I need to reply or take action (True/False).
+        1. Context: The last message in the history is the "Trigger".
+        2. Relevance: Is this conversation directing a task, question, or important information specifically to ME (the owner)?
+           - If it's a general group chat noise, greetings ("hi", "hello"), or irrelevant chatter -> Priority 0, Action False.
+           - If it's a specific request, deadline, or urgent info for me -> High Priority.
+        3. Rate urgency/importance from 0 to 10 (10 is critical, 0 is noise).
+        4. Summarize the request in one sentence.
+        5. Decide if action is required (True/False). Mark "False" for noise.
+        6. Extract deadline if present.
         4. Extract a deadline if present (e.g., "by 5pm", "tomorrow", "Friday"). Return null if no deadline.
         
         Output JSON only:

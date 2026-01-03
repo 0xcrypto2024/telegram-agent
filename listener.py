@@ -30,13 +30,28 @@ async def message_handler(client, message):
     sender = message.chat.title if message.chat.title else message.chat.first_name
     logger.info(f"Processing message from {sender}...")
 
-    # Analyze
-    analysis = await intelligence_agent.analyze_message(message.text, sender)
+    # Fetch recent context (last 5 messages) for better analysis
+    history = []
+    try:
+        async for msg in client.get_chat_history(message.chat.id, limit=5):
+            sender_name = msg.chat.title or msg.from_user.first_name or "Unknown"
+            if msg.from_user:
+                sender_name = msg.from_user.first_name
+            history.append(f"{sender_name}: {msg.text or '[Media]'}")
+        history.reverse() # Oldest first
+    except Exception as e:
+        logger.warning(f"Failed to fetch history: {e}")
+        history = [f"{sender}: {message.text}"]
+
+    context_text = "\n".join(history)
+
+    # Analyze with context
+    analysis = await intelligence_agent.analyze_message(context_text, sender)
     logger.info(f"Analysis: {analysis}")
 
-    # Add to Task Manager if important (Threshold > 7) or Action Required
-    # DEBUG: Lowered to 0 to ensure dashboard appears
-    if analysis.get('priority', 0) >= 0 or analysis.get('action_required', False):
+    # Add to Task Manager if important (Threshold > 4) or Action Required
+    # Restored to 4 to filter noise (e.g. "hi")
+    if analysis.get('priority', 0) >= 4 or analysis.get('action_required', False):
         try:
             # message.link can sometimes crash if peer is not cached
             safe_link = f"https://t.me/c/{str(message.chat.id)[4:] if str(message.chat.id).startswith('-100') else message.chat.id}/{message.id}"
