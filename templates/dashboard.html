@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gray: {
+                            850: '#1f2937',
+                            900: '#111827',
+                            950: '#0b0f19',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass {
+            background: rgba(31, 41, 55, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-white min-h-screen p-6">
+
+    <div class="max-w-4xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+                    Agent Command Center
+                </h1>
+                <p class="text-gray-400 mt-1">Local Intelligence Dashboard</p>
+            </div>
+            <div id="status" class="px-3 py-1 rounded-full text-xs font-mono bg-green-500/20 text-green-400 border border-green-500/30">
+                Online
+            </div>
+        </header>
+
+        <div id="task-container" class="space-y-4">
+            <!-- Tasks will be injected here -->
+            <div class="text-center text-gray-500 py-12">Loading tasks...</div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchTasks() {
+            try {
+                const response = await fetch('/api/tasks');
+                const tasks = await response.json();
+                renderTasks(tasks);
+            } catch (error) {
+                console.error('Error fetching tasks:', error);
+                document.getElementById('status').innerText = 'Offline';
+                document.getElementById('status').className = 'px-3 py-1 rounded-full text-xs font-mono bg-red-500/20 text-red-400 border border-red-500/30';
+            }
+        }
+
+        async function markDone(taskId) {
+            try {
+                await fetch(`/api/done/${taskId}`, { method: 'POST' });
+                // Optimistic update
+                fetchTasks();
+            } catch (error) {
+                alert('Failed to mark task as done');
+            }
+        }
+
+        function renderTasks(tasks) {
+            const container = document.getElementById('task-container');
+            
+            if (tasks.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 glass rounded-2xl">
+                        <div class="text-4xl mb-3">✅</div>
+                        <h3 class="text-xl font-semibold text-gray-300">All Clear</h3>
+                        <p class="text-gray-500">No active tasks pending.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => {
+                const priorityColor = task.priority >= 8 ? 'text-red-400 border-red-500/30 bg-red-500/10' : 
+                                      task.priority >= 5 ? 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10' : 
+                                      'text-blue-400 border-blue-500/30 bg-blue-500/10';
+                
+                return `
+                <div class="glass rounded-xl p-5 hover:bg-gray-800/50 transition-all duration-300 border border-gray-800 relative group">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3 mb-2">
+                                <span class="px-2 py-0.5 rounded text-xs font-bold border ${priorityColor}">
+                                    P${task.priority}
+                                </span>
+                                <span class="text-xs text-gray-500 font-mono">${task.time}</span>
+                                <span class="text-xs text-gray-400 flex items-center gap-1">
+                                    👤 ${task.sender}
+                                </span>
+                            </div>
+                            <h3 class="text-lg font-medium text-gray-200">${task.summary}</h3>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            ${task.link && task.link.startsWith('http') ? 
+                                `<a href="${task.link}" target="_blank" class="p-2 text-gray-400 hover:text-white transition-colors" title="View Message">
+                                    🔗
+                                </a>` : ''}
+                            <button onclick="markDone('${task.id}')" 
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-blue-900/20">
+                                Mark Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // Initial load
+        fetchTasks();
+        // Poll every 3 seconds
+        setInterval(fetchTasks, 3000);
+    </script>
+</body>
+</html>
