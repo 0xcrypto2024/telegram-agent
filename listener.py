@@ -182,9 +182,33 @@ def is_message_relevant(message, me_id, dynamic_keywords):
             
     return False
 
+def get_message_link(message):
+    """Generates a safe link for the message to use as a unique ID."""
+    try:
+        # Prefer Pyrogram's native link if available
+        if message.link:
+            return message.link
+    except Exception:
+        pass
+        
+    # Fallback construction
+    chat_id_str = str(message.chat.id)
+    if chat_id_str.startswith('-100'):
+        chat_id_str = chat_id_str[4:]
+    return f"https://t.me/c/{chat_id_str}/{message.id}"
+
 async def run_catch_up(app: Client, dynamic_keywords):
     """Scans recent dialogs for missed messages during downtime."""
     logger.info("♻️ Running Startup Catch-Up...")
+    
+    # 0. Pre-fetch existing tasks for Deduplication
+    existing_tasks = tm.get_tasks()
+    existing_links = set()
+    for t in existing_tasks:
+        if t.get('link'):
+            existing_links.add(t['link'])
+            
+    logger.info(f"Loaded {len(existing_links)} existing task links for deduplication.")
     
     me = await app.get_me()
     me_id = me.id
@@ -198,6 +222,7 @@ async def run_catch_up(app: Client, dynamic_keywords):
         logger.info(f"Scanning {len(dialogs)} active chats for missed tasks...")
         
         count = 0
+        skipped = 0
         for chat_id in dialogs:
             # Get last 20 messages
             history = []
@@ -210,21 +235,23 @@ async def run_catch_up(app: Client, dynamic_keywords):
             for msg in history:
                 # Basic relevance check
                 if is_message_relevant(msg, me_id, dynamic_keywords):
-                    # Check if already processed (Deduplication)
-                    # We rely on Notion Check in analyze_message, but we can do a quick check here?
-                    # For now, let's just process it. The Agent is smart enough to see "Is it new?".
-                    # Optimization: Only process messages younger than 24 hours?
-                    
-                    # Log finding
-                    # logger.info(f"Catch-Up: Found potential msg in {chat_id}: {msg.id}")
+                    # Deduplication Check
+                    msg_link = get_message_link(msg)
+                    if msg_link in existing_links:
+                        # logger.info(f"Skipping Duplicate: {msg_link}")
+                        skipped += 1
+                        continue
+                        
                     try:
                         await message_handler(app, msg)
                         count += 1
+                        # Add to local set to prevent adding same task twice in one run
+                        existing_links.add(msg_link) 
                         await asyncio.sleep(0.5) # Rate limit protection
                     except Exception as e:
                         logger.error(f"Error processing catch-up msg: {e}")
                         
-        logger.info(f"♻️ Catch-Up Complete. Processed {count} potential messages.")
+        logger.info(f"♻️ Catch-Up Complete. Processed {count} new messages. Skipped {skipped} duplicates.")
         
     except Exception as e:
         logger.error(f"Catch-Up Failed: {e}")
