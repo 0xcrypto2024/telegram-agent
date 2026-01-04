@@ -125,6 +125,21 @@ Runs locally at **http://localhost:8000**.
 3.  **Check Notion**: The task appears in seconds.
 4.  **Complete it**: Click **Done** on the Dashboard.
 
+## 🍏 Auto-Start (Mac Only)
+
+To make the agent start automatically when you login:
+
+1.  **Copy the plist file**:
+    ```bash
+    cp org.jzbnb.telegram-agent.plist ~/Library/LaunchAgents/
+    ```
+2.  **Load the service**:
+    ```bash
+    launchctl load ~/Library/LaunchAgents/org.jzbnb.telegram-agent.plist
+    ```
+3.  **Check status**:
+    The agent will now run in the background. Logs are available at `agent.log` and `agent.err` in the project folder.
+
 ## 🏗️ Architecture
 
 - **`main.py`**: Orchestrator running concurrent Listener and Server.

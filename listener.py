@@ -1,4 +1,5 @@
 from pyrogram import Client, filters, handlers
+import pyrogram
 from config import API_ID, API_HASH, SESSION_STRING
 from agent import Agent
 from task_manager import TaskManager
@@ -78,8 +79,17 @@ async def message_handler(client, message):
                 deadline=analysis.get('deadline'),
                 user_id=message.chat.id
             )
-            # Notify user in Telegram
-            await message.reply(f"✅ **Task Added**\nPriority: {analysis.get('priority', 0)}\nSummary: {analysis.get('summary', 'No summary')}")
+            # Notify user (Silent Mode: Only to Saved Messages)
+            notification_text = f"✅ **Task Added from {sender}**\nPriority: {analysis.get('priority', 0)}\nSummary: {analysis.get('summary', 'No summary')}\nLink: {safe_link}"
+            
+            # If the source was NOT Saved Messages, send a copy to Saved Messages so I know.
+            # If it WAS Saved Messages, we can either reply or just let it be. 
+            # User asked: "only send to my Saved Messages".
+            if message.chat.id != (await client.get_me()).id:
+                await client.send_message("me", notification_text)
+            else:
+                 # Optional: acknowledgment in Saved Messages (the user is "me")
+                 await message.reply(f"✅ **Task Added**\nPriority: {analysis.get('priority', 0)}")
         except Exception as e:
             logger.error(f"Failed to add task or reply: {e}")
 
@@ -140,6 +150,85 @@ async def scheduler(app: Client, tm: TaskManager):
 
 
 
+def is_message_relevant(message, me_id, dynamic_keywords):
+    """Refactored logic to check if a message is relevant for the agent."""
+    # 1. Saved Messages (Chat "me")
+    if message.chat.id == me_id:
+        return True
+        
+    # 2. DMs (Private)
+    if message.chat.type == pyrogram.enums.ChatType.PRIVATE:
+        # Check if it's NOT from me (incoming DM)
+        if not message.from_user.is_self:
+            return True # Process all DMs for now (filtered by AI later)
+            
+    # 3. Mentions
+    if message.mentioned:
+        return True
+        
+    # 4. Replies to Me
+    if message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.is_self:
+        return True
+    
+    # 5. Keywords
+    if message.text:
+        text = message.text.lower()
+        if any(k.lower() in text for k in dynamic_keywords):
+            return True
+    if message.caption:
+        caption = message.caption.lower()
+        if any(k.lower() in caption for k in dynamic_keywords):
+            return True
+            
+    return False
+
+async def run_catch_up(app: Client, dynamic_keywords):
+    """Scans recent dialogs for missed messages during downtime."""
+    logger.info("♻️ Running Startup Catch-Up...")
+    
+    me = await app.get_me()
+    me_id = me.id
+    
+    # 1. Fetch recent dialogs
+    try:
+        dialogs = []
+        async for d in app.get_dialogs(limit=20):
+            dialogs.append(d.chat.id)
+            
+        logger.info(f"Scanning {len(dialogs)} active chats for missed tasks...")
+        
+        count = 0
+        for chat_id in dialogs:
+            # Get last 20 messages
+            history = []
+            async for msg in app.get_chat_history(chat_id, limit=20):
+                history.append(msg)
+            
+            # Process from oldest to newest
+            history.reverse()
+            
+            for msg in history:
+                # Basic relevance check
+                if is_message_relevant(msg, me_id, dynamic_keywords):
+                    # Check if already processed (Deduplication)
+                    # We rely on Notion Check in analyze_message, but we can do a quick check here?
+                    # For now, let's just process it. The Agent is smart enough to see "Is it new?".
+                    # Optimization: Only process messages younger than 24 hours?
+                    
+                    # Log finding
+                    # logger.info(f"Catch-Up: Found potential msg in {chat_id}: {msg.id}")
+                    try:
+                        await message_handler(app, msg)
+                        count += 1
+                        await asyncio.sleep(0.5) # Rate limit protection
+                    except Exception as e:
+                        logger.error(f"Error processing catch-up msg: {e}")
+                        
+        logger.info(f"♻️ Catch-Up Complete. Processed {count} potential messages.")
+        
+    except Exception as e:
+        logger.error(f"Catch-Up Failed: {e}")
+
 async def start_listener():
     logger.info("Client initialized. Starting...")
     
@@ -153,23 +242,22 @@ async def start_listener():
 
     # Register Handlers
     logger.info("Registering handlers...")
-    
 
-    # Custom Filter: Start Listener
-    # 1. Replies to ME
-    # 2. Keywords ("Jackie")
     # Dynamic Keywords
     dynamic_keywords = []
-
+    
     # Custom Filter: Start Listener
     # 1. Replies to ME
     # 2. Keywords (Dynamic)
     async def relevant_filter(_, __, message):
-        # 1. Reply to Me
+        # We need 'me' ID for the helper, but inside filter it's hard to get async 'me' every time.
+        # We'll use a cached ID or just checking 'is_self' on message objects.
+        # For efficiency, we replicate the logic slightly or use the helper if we had 'me_id'.
+        # Since 'is_message_relevant' needs me_id for Saved Messages check, we can rely on filters.chat("me") for that.
+        
         if message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.is_self:
             return True
         
-        # 2. Keywords
         if message.text:
             text = message.text.lower()
             if any(k.lower() in text for k in dynamic_keywords):
@@ -192,18 +280,21 @@ async def start_listener():
     # Start the client
     await app.start()
     
-    # Start Scheduler
-    asyncio.create_task(scheduler(app, tm))
-    
     # Init Keywords
     me = await app.get_me()
     if me.first_name: dynamic_keywords.append(me.first_name)
     if me.last_name: dynamic_keywords.append(me.last_name)
     if me.username: dynamic_keywords.append(me.username)
     logger.info(f"Initialized Keyword Filter: {dynamic_keywords}")
+    
+    # START CATCH-UP
+    await run_catch_up(app, dynamic_keywords)
+    
+    # Start Scheduler
+    asyncio.create_task(scheduler(app, tm))
 
     try:
-        await app.send_message("me", "⚡ **Agent Just Started** ⚡\nSend me a message to test!")
+        await app.send_message("me", "⚡ **Agent Just Started** ⚡\n_Startup Catch-Up Complete._")
         logger.info("Startup message sent to 'me'")
     except Exception as e:
         logger.error(f"Failed to send startup message: {e}")
