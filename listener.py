@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 # Initialize Agent & Task Manager
 intelligence_agent = Agent()
 tm = TaskManager()
+from discussion_buffer import DiscussionBuffer
+discussion_buffer = DiscussionBuffer()
 
 # Initialize Client
 if SESSION_STRING:
@@ -93,38 +95,87 @@ async def message_handler(client, message):
         except Exception as e:
             logger.error(f"Failed to add task or reply: {e}")
 
-async def send_daily_briefing(app: Client, tm: TaskManager):
-    """Sends a daily summary of top tasks."""
-    logger.info("Generating Daily Briefing...")
-    data = tm.get_daily_briefing_tasks()
-    
-    if not data['top_tasks'] and not data['deadline_tasks']:
-        # Send a "All Clear" message instead of silence, so user knows it ran
-        text = "☀️ **Good Morning!**\n\n✅ **You have Zero Active Tasks.**\nEnjoy your day! details at http://localhost:8000"
-        try:
-            await app.send_message("me", text)
-            logger.info("Daily Briefing Sent (Empty).")
-        except Exception as e:
-            logger.error(f"Failed to send briefing: {e}")
+async def group_digest_listener(client, message):
+    """Buffers group messages for daily summary."""
+    # Only process Group/Supergroup
+    if message.chat.type not in [pyrogram.enums.ChatType.GROUP, pyrogram.enums.ChatType.SUPERGROUP]:
+        return
+        
+    # Skip if it's a command
+    if message.text and message.text.startswith("/"):
         return
 
-    text = "☀️ **Good Morning! Here is your Daily Briefing:**\n\n"
+    # Buffer content
+    sender_name = message.from_user.first_name if message.from_user else message.chat.title
+    text = message.text or message.caption or "[Media]"
+    
+    # We buffer everything active. 
+    # Optimization: Filter roughly (length > 10?)
+    if len(text) > 10:
+        discussion_buffer.add_point(message.chat.title or "Unknown Group", sender_name, text)
+
+async def command_handler(client, message):
+    """Handles commands like /summary."""
+    command = message.text.split()[0].lower()
+    
+    if command == "/summary":
+        logger.info("Generating On-Demand Summary...")
+        await message.reply("🔄 Generating Group Discussion Digest...")
+        
+        buffer_text = discussion_buffer.get_grouped_text()
+        if not buffer_text:
+             await message.reply("📭 No discussions recorded today.")
+             return
+             
+        summary = await intelligence_agent.summarize_discussions(buffer_text)
+        await message.reply(summary)
+        
+        # Archive it? command usually implies just viewing. 
+        # But we can archive "manual" ones too if we want.
+        # Let's keep archiving for the daily schedule to avoid duplication.
+
+async def send_daily_briefing(app: Client, tm: TaskManager):
+    """Sends a daily summary of top tasks AND discussion digest."""
+    logger.info("Generating Daily Briefing...")
+    
+    # Part 1: Tasks
+    data = tm.get_daily_briefing_tasks()
+    task_text = ""
     
     if data['top_tasks']:
-        text += "**🔥 Top Priorities:**\n"
+        task_text += "**🔥 Top Priorities:**\n"
         for t in data['top_tasks']:
-            text += f"- (P{t['priority']}) {t['summary']}\n"
+            task_text += f"- (P{t['priority']}) {t['summary']}\n"
     
     if data['deadline_tasks']:
-        text += "\n**📅 Upcoming Deadlines:**\n"
+        task_text += "\n**📅 Upcoming Deadlines:**\n"
         for t in data['deadline_tasks']:
-             text += f"- {t['summary']} ({t.get('deadline')})\n"
+             task_text += f"- {t['summary']} ({t.get('deadline')})\n"
              
-    text += "\n*Check Dashboard: http://localhost:8000*"
+    # Part 2: Group Digest
+    digest_text = ""
+    buffer_content = discussion_buffer.get_grouped_text()
+    if buffer_content:
+        logger.info("Summarizing Group Discussions...")
+        digest_text = await intelligence_agent.summarize_discussions(buffer_content)
+        # Archive
+        discussion_buffer.archive_daily_summary(digest_text)
+        discussion_buffer.clear() # Clear buffer after daily report
+    
+    # Combine
+    final_text = "☀️ **Good Morning! Here is your Daily Briefing:**\n\n"
+    
+    if not task_text and not digest_text:
+        final_text += "✅ **All Clear.** No active tasks or discussions."
+    else:
+        if task_text: final_text += task_text + "\n"
+        if digest_text: final_text += "\n" + digest_text + "\n"
+        
+    final_text += "\n*Check Dashboard: http://localhost:8000*"
     
     # Send to Saved Messages (Me)
     try:
-        await app.send_message("me", text)
+        await app.send_message("me", final_text)
         logger.info("Daily Briefing Sent.")
     except Exception as e:
         logger.error(f"Failed to send briefing: {e}")
@@ -298,8 +349,13 @@ async def start_listener():
 
     custom_relevance_filter = filters.create(relevant_filter)
 
-    # Message Handlers
-    # Filter: DMs OR Mentions OR Saved Messages OR Replies to Me OR Keywords
+    # Register Group Digest Listener (Catch-all for groups)
+    app.add_handler(handlers.MessageHandler(group_digest_listener, filters.group), group=1)
+    
+    # Register Command Handler (Privacy: Only me)
+    app.add_handler(handlers.MessageHandler(command_handler, filters.command("summary") & filters.me), group=2)
+    
+    # Existing Handler (Priority Logic)
     app.add_handler(handlers.MessageHandler(message_handler, 
         filters.private | filters.mentioned | filters.chat("me") | custom_relevance_filter
     ), group=0)
@@ -315,13 +371,15 @@ async def start_listener():
     logger.info(f"Initialized Keyword Filter: {dynamic_keywords}")
     
     # START CATCH-UP
-    await run_catch_up(app, dynamic_keywords)
+    # Disabled to prevent duplicates: Pyrogram automatically fetches missed updates on persistent sessions.
+    # await run_catch_up(app, dynamic_keywords)
+    logger.info("Startup Catch-Up DISABLED (Relying on Native Updates)")
     
     # Start Scheduler
     asyncio.create_task(scheduler(app, tm))
 
     try:
-        await app.send_message("me", "⚡ **Agent Just Started** ⚡\n_Startup Catch-Up Complete._")
+        await app.send_message("me", "⚡ **Agent Just Started** ⚡\n_Group Digest Active._")
         logger.info("Startup message sent to 'me'")
     except Exception as e:
         logger.error(f"Failed to send startup message: {e}")

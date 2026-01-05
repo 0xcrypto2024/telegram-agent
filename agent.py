@@ -48,3 +48,30 @@ class Agent:
         except Exception as e:
             logger.error(f"Error analyzing message: {e}")
             return {"priority": 0, "summary": "Analysis failed", "action_required": False}
+
+    async def summarize_discussions(self, buffer_text: str) -> str:
+        """
+        Summarizes a list of discussion points into a cohesive daily report.
+        """
+        if not buffer_text: return "No meaningful discussions to report."
+        
+        prompt = f"""
+        You are a helpful assistant summarizing the day's group chats.
+        Here are the raw discussion points, grouped by chat:
+        
+        {buffer_text}
+        
+        Please provide a concise, bullet-point summary of the discussions.
+        - Group by Chat Name.
+        - Identify key topics and general sentiment.
+        - Ignore trivial chatter.
+        - Format neatly in Markdown.
+        - Start with "📢 **Daily Group Discussion Digest**"
+        """
+        
+        try:
+            response = await self.model.generate_content_async(prompt)
+            return response.text
+        except Exception as e:
+            logger.error(f"Error generating summary: {e}")
+            return "Failed to generate summary."

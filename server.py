@@ -57,6 +57,17 @@ async def reopen_task(task_id: str):
     if not task_manager:
         return JSONResponse(status_code=500, content={"error": "TaskManager not initialized"})
     
-    # SSOT: Direct call
     task_manager.reopen_task(task_id)
     return {"status": "success", "task": task_id}
+
+@app.get("/api/discussions/history")
+async def get_discussion_history():
+    from discussion_buffer import DiscussionBuffer
+    db = DiscussionBuffer() # It loads from disk, so fresh instance is fine or can inject
+    return db.get_history()
+
+@app.get("/api/discussions/today")
+async def get_today_discussion():
+    from discussion_buffer import DiscussionBuffer
+    db = DiscussionBuffer()
+    return db.get_grouped_text() or "No discussions yet."
