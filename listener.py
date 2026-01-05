@@ -1,10 +1,13 @@
 from pyrogram import Client, filters, handlers
 import pyrogram
-from config import API_ID, API_HASH, SESSION_STRING
+from config import API_ID, API_HASH, SESSION_STRING, KEYWORD_FILTER
 from agent import Agent
 from task_manager import TaskManager
 import logging
 import asyncio
+import os
+import sys
+import session_manager
 
 logger = logging.getLogger(__name__)
 
@@ -322,7 +325,7 @@ async def start_listener():
     logger.info("Registering handlers...")
 
     # Dynamic Keywords
-    dynamic_keywords = []
+    dynamic_keywords = list(KEYWORD_FILTER) # Start with config keywords
     
     # Custom Filter: Start Listener
     # 1. Replies to ME
@@ -361,6 +364,23 @@ async def start_listener():
     ), group=0)
 
     # Start the client
+    # 0. Validate Session (Auto-Renewal)
+    new_session, updated = await session_manager.ensure_session(API_ID, API_HASH, SESSION_STRING)
+    
+    if updated:
+        logger.info("Session updated. Saving and restarting...")
+        session_manager.update_env_session(new_session)
+        
+        # CRITICAL FIX: Update os.environ so the new process inherits the new session
+        # otherwise load_dotenv will see the old empty env var and not override it.
+        os.environ["SESSION_STRING"] = new_session
+        
+        logger.info("Restarting process to apply new session...")
+        # Restart the current script
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+        return
+
+    # If valid, start
     await app.start()
     
     # Init Keywords
