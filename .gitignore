@@ -9,3 +9,7 @@ tasks.json
 org.jzbnb.telegram-agent.plist
 agent.err
 agent.log
+
+daily_history.json
+discussions.json
+task.md
