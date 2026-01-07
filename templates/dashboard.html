@@ -234,6 +234,24 @@
         }
 
         // ... (Existing Functions: updateStatus, markDone, etc. keep same) ...
+        async function updatePriority(taskId, newPriority) {
+            try {
+                const response = await fetch(`/api/priority/${taskId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ priority: newPriority })
+                });
+                if (response.ok) {
+                    showToast(`Priority updated to P${newPriority}`, 'success');
+                } else {
+                    showToast('Failed to update priority', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('Error updating priority', 'error');
+            }
+        }
+
         function updateStatus(isOnline) {
             const badge = document.getElementById('status-badge');
             const indicator = document.getElementById('status-indicator');
