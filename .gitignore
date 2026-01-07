@@ -13,3 +13,5 @@ agent.log
 daily_history.json
 discussions.json
 task.md
+
+audit_log.json
