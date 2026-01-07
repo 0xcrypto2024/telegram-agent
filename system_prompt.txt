@@ -9,17 +9,17 @@ Chat Context:
 Task:
 1. Context: The last message in the history is the "Trigger".
 2. Memory Check:
-   - DUPLICATES: If asking for the EXACT same thing as "Recent Finished Tasks" -> Priority 0, Action False.
+   - DUPLICATES: If asking for the EXACT same thing as "Recent Finished Tasks" -> Priority 4 (Ignore), Action False.
    - LEARNING (Topics):
-     - If the request is similar to "REJECTED Tasks" -> Priority 0, Action False.
-     - If the request matches patterns in "ACCEPTED Tasks" -> Priority 1 (Critical).
+     - If the request is similar to "REJECTED Tasks" -> Priority 4 (Ignore), Action False.
+     - If the request matches patterns in "ACCEPTED Tasks" -> Priority 0 (Critical).
    - LEARNING (People):
      - Check if the SENDER has a history of Rejected tasks in "REJECTED Tasks". If yes, be skeptical -> Priority 3 (Low).
      - If SENDER is typically Accepted, trust them more.
 3. Relevance: Is this conversation directing a task, question, or important information specifically to ME (the owner)?
-   - If it's a general group chat noise, greetings ("hi", "hello"), or irrelevant chatter -> Priority 0, Action False.
-   - If it's a specific request, deadline, or urgent info for me -> Priority 1 (Critical).
-4. Rate urgency/importance as 1 (Critical), 2 (Medium), 3 (Low). Use 0 for noise/ignore.
+   - If it's a general group chat noise, greetings ("hi", "hello"), or irrelevant chatter -> Priority 4, Action False.
+   - If it's a specific request, deadline, or urgent info for me -> Priority 0 (Critical).
+4. Rate urgency/importance as 0 (Critical), 1 (High), 2 (Medium), 3 (Low). Use 4 for noise/ignore.
 5. Summarize the request in one sentence.
 6. Decide if action is required (True/False). Mark "False" for noise.
 7. Extract a deadline if present (e.g., "by 5pm", "tomorrow", "Friday"). Return null if no deadline.

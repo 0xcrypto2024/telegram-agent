@@ -65,8 +65,9 @@ async def message_handler(client, message):
     analysis = await intelligence_agent.analyze_message(context_text, sender, memory_text)
     logger.info(f"Analysis: {analysis}")
 
-    # Add to Task Manager if Priority > 0 (1=Critical, 2=Med, 3=Low) or Action Required
-    if analysis.get('priority', 0) > 0 or analysis.get('action_required', False):
+    # Add to Task Manager if Priority <= 3 (0=Crit, 1=High, 2=Med, 3=Low) or Action Required
+    # Priority 4 is Noise
+    if analysis.get('priority', 4) <= 3 or analysis.get('action_required', False):
         try:
             # message.link can sometimes crash if peer is not cached
             safe_link = f"https://t.me/c/{str(message.chat.id)[4:] if str(message.chat.id).startswith('-100') else message.chat.id}/{message.id}"
