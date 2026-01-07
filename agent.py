@@ -25,7 +25,7 @@ class Agent:
     async def analyze_message(self, message_text: str, sender_info: str, memory_text: str = "") -> dict:
         """
         Analyzes a message to determine importance and generate a summary.
-        Returns a dictionary: { "priority": int (0-10), "summary": str, "action_required": bool }
+        Returns a dictionary: { "priority": int, "summary": str, "action_required": bool, "deadline": str, "reply_text": str }
         """
         if not self.api_key:
             return {"priority": 0, "summary": "No API Key", "action_required": False}

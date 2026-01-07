@@ -1,6 +1,7 @@
 from notion_client import AsyncClient
 import logging
 import os
+from utils import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class NotionSync:
             logger.info("Notion AsyncClient initialized (Lazy).")
         return self.notion
 
+    @retry_with_backoff(retries=3, backoff_in_seconds=1)
     async def create_task_page(self, task):
         """Creates a page in the database asynchronously."""
         if not self._get_client() or not self.database_id: return None
@@ -44,33 +46,41 @@ class NotionSync:
             }
             status_val = status_map.get(task.get("status", "active"), "Active")
 
+            # Define properties first
+            properties = {
+                "Name": {
+                    "title": [{"text": {"content": task['summary']}}]
+                },
+                "Status": {
+                    "status": {"name": status_val}
+                },
+                "Priority": {
+                    "number": priority_val
+                },
+                "Sender": {
+                    "rich_text": [{"text": {"content": task.get('sender', 'Unknown')}}]
+                }
+            }
+            
+            # Optional Fields
+            if task.get('link'):
+                properties["Link"] = {"url": task.get('link')}
+            
+            if task.get('deadline'):
+                properties["Deadline"] = {"rich_text": [{"text": {"content": task.get('deadline')}}]}
+
             new_page = await self._get_client().pages.create(
                 parent={"database_id": self.database_id},
-                properties={
-                    "Name": {
-                        "title": [{"text": {"content": task['summary']}}]
-                    },
-                    "Status": {
-                        "status": {"name": status_val}
-                    },
-                    "Priority": {
-                        "number": priority_val
-                    },
-                    "Sender": {
-                        "rich_text": [{"text": {"content": task.get('sender', 'Unknown')}}]
-                    },
-                    "Link": {
-                        "url": task.get('link') if task.get('link') else None
-                    }
-                }
+                properties=properties
             )
             logger.info(f"Synced task to Notion: {new_page['id']}")
             return new_page['id']
             
         except Exception as e:
             logger.error(f"Failed to sync to Notion: {e}")
-            return None
+            raise e  # Raise to trigger retry
 
+    @retry_with_backoff(retries=3, backoff_in_seconds=1)
     async def update_task_status(self, page_id, status):
         """Updates the status select property asynchronously."""
         if not self.notion or not page_id: return
@@ -94,7 +104,9 @@ class NotionSync:
             logger.info(f"Updated Notion Page {page_id} to {status_val}")
         except Exception as e:
             logger.error(f"Failed to update Notion Page: {e}")
+            raise e
 
+    @retry_with_backoff(retries=3, backoff_in_seconds=1)
     async def find_task_by_link(self, link):
         """Checks if a task with the given link already exists using search asynchronously."""
         if not self._get_client() or not self.database_id or not link: return None
@@ -122,7 +134,7 @@ class NotionSync:
             return None
         except Exception as e:
             logger.error(f"Failed to check task existence via search: {e}")
-            return None
+            raise e
 
     def _parse_comments_text(self, full_text):
         """Helper to parse raw comment text into structured list."""
@@ -150,6 +162,7 @@ class NotionSync:
                     })
         return comments[::-1] # Newest first
 
+    @retry_with_backoff(retries=3, backoff_in_seconds=1)
     async def get_tasks(self):
         """Fetches all tasks from Notion database using search asynchronously."""
         if not self._get_client() or not self.database_id: return []
@@ -213,9 +226,9 @@ class NotionSync:
             return tasks
         except Exception as e:
             logger.error(f"Failed to fetch tasks from Notion: {e}")
-            return []
+            raise e
 
-
+    @retry_with_backoff(retries=3, backoff_in_seconds=1)
     async def get_comments(self, page_id):
         """Fetches comments from the AgentComments text property."""
         if not self._get_client() or not page_id: return []
@@ -230,8 +243,9 @@ class NotionSync:
             
         except Exception as e:
             logger.error(f"Failed to fetch comments: {e}")
-            return []
+            raise e
 
+    @retry_with_backoff(retries=3, backoff_in_seconds=1)
     async def add_comment(self, page_id, text, sender="Unknown"):
         """Appends a comment to the AgentComments property."""
         if not self._get_client() or not page_id: return None
@@ -272,8 +286,9 @@ class NotionSync:
             }
         except Exception as e:
             logger.error(f"Failed to add comment: {e}")
-            return None
+            raise e
 
+    @retry_with_backoff(retries=3, backoff_in_seconds=1)
     async def delete_comment(self, page_id, comment_id):
         """Removes a comment line by ID."""
         if not self._get_client() or not page_id: return False
@@ -311,8 +326,9 @@ class NotionSync:
             
         except Exception as e:
             logger.error(f"Failed to delete comment: {e}")
-            return False
+            raise e
 
+    @retry_with_backoff(retries=3, backoff_in_seconds=1)
     async def update_task_priority(self, page_id, priority):
         """Updates the Priority number property asynchronously."""
         if not self._get_client() or not page_id: return False
@@ -330,4 +346,4 @@ class NotionSync:
             return True
         except Exception as e:
             logger.error(f"Failed to update Notion Page Priority: {e}")
-            return False
+            raise e

@@ -73,6 +73,29 @@ async def message_handler(client, message):
         )
     except Exception as e:
         logger.error(f"Audit log failed: {e}")
+        
+    # AUTO-REPLY LOGIC
+    # User feedback: "no confirmation messages", "allow disable", "polite tone" (handled by prompt)
+    from config import ENABLE_AUTO_REPLY
+    
+    reply_text = analysis.get('reply_text')
+    
+    # Strict safeguards
+    should_reply = (
+        ENABLE_AUTO_REPLY 
+        and reply_text 
+        and len(reply_text) > 2 
+        and not message.from_user.is_self # Never reply to self (loop safety)
+        and "task added" not in reply_text.lower() # Redundant safety check against confirmations
+        and "okay" != reply_text.lower().strip()
+    )
+    
+    if should_reply:
+        try:
+            logger.info(f"🤖 Auto-Replying to {sender}: {reply_text}")
+            await message.reply_text(reply_text)
+        except Exception as e:
+            logger.error(f"Failed to auto-reply: {e}")
 
     # Add to Task Manager if Priority <= 3 (0=Crit, 1=High, 2=Med, 3=Low) or Action Required
     # Priority 4 is Noise
@@ -102,15 +125,12 @@ async def message_handler(client, message):
             notification_text = f"✅ **Task Added from {sender}**\nPriority: {analysis.get('priority', 0)}\nSummary: {analysis.get('summary', 'No summary')}\nLink: {safe_link}"
             
             # If the source was NOT Saved Messages, send a copy to Saved Messages so I know.
-            # If it WAS Saved Messages, we can either reply or just let it be. 
-            # User asked: "only send to my Saved Messages".
             if message.chat.id != (await client.get_me()).id:
                 await client.send_message("me", notification_text)
-            else:
-                 # Optional: acknowledgment in Saved Messages (the user is "me")
-                 await message.reply(f"✅ **Task Added**\nPriority: {analysis.get('priority', 0)}")
+            
+            # REMOVED: await message.reply(...) for confirmation to avoid annoying sender.
         except Exception as e:
-            logger.error(f"Failed to add task or reply: {e}")
+            logger.error(f"Failed to add task: {e}")
 
 async def group_digest_listener(client, message):
     """Buffers group messages for daily summary."""

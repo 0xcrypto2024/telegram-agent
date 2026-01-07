@@ -12,6 +12,9 @@ SESSION_STRING = os.getenv("SESSION_STRING")  # For persistent sessions in conta
 KEYWORD_FILTER_STR = os.getenv("KEYWORD_FILTER", "")
 KEYWORD_FILTER = [k.strip() for k in KEYWORD_FILTER_STR.split(",") if k.strip()]
 
+# Auto-Reply Toggle
+ENABLE_AUTO_REPLY = True
+
 # Group Trigger Keywords (Implicit Mentions)
 GROUP_TRIGGER_KEYWORDS = [
     'everyone', 
