@@ -10,7 +10,7 @@ try:
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
-from listener import start_listener, tm, app as client_app
+from listener import start_listener, tm, app as client_app, intelligence_agent, memory_manager
 import server
 import pyrogram
 
@@ -62,6 +62,11 @@ async def main():
     # 2. Run Server as background task
     server_task = asyncio.create_task(run_server())
 
+    # 3. Start Learning Service (Background)
+    from learning_service import LearningService
+    rec_service = LearningService(intelligence_agent, memory_manager, tm)
+    learning_task = asyncio.create_task(rec_service.start_scheduler())
+
     # 3. Idle until signal
     try:
         await pyrogram.idle()
@@ -74,6 +79,13 @@ async def main():
         server_task.cancel()
         try:
             await server_task
+        except asyncio.CancelledError:
+            pass
+
+        # Stop Learning Service
+        learning_task.cancel()
+        try:
+            await learning_task
         except asyncio.CancelledError:
             pass
             

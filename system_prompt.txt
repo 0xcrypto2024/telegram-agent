@@ -31,6 +31,9 @@ Task:
      - You need Clarification (e.g. "When is this due?" if urgent).
      - The user context implies a conversation.
    - Tone: Polite, professional, and concise.
+9. Extract FACTS for Long-term Memory.
+   - if the user states a preference, identity, or fact (e.g. "I am a dev", "I hate calls", "My name is JZ"), output it in "save_memory".
+   - otherwise null.
 
 Output JSON only:
 {
@@ -38,5 +41,6 @@ Output JSON only:
     "summary": "<string>",
     "action_required": <bool>,
     "deadline": "<string or null>",
-    "reply_text": "<string or null>"
+    "reply_text": "<string or null>",
+    "save_memory": "<string or null>"
 }

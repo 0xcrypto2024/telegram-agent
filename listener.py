@@ -1,12 +1,13 @@
 from pyrogram import Client, filters, handlers
 import pyrogram
-from config import API_ID, API_HASH, SESSION_STRING, KEYWORD_FILTER
+from config import API_ID, API_HASH, SESSION_STRING, KEYWORD_FILTER, ENABLE_AUTO_REPLY, ENABLE_LONG_TERM_MEMORY, WORKING_HOURS_START, WORKING_HOURS_END
 from agent import Agent
 from task_manager import TaskManager
 import logging
 import asyncio
 import os
 import sys
+from datetime import datetime
 import session_manager
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,8 @@ intelligence_agent = Agent()
 tm = TaskManager()
 from discussion_buffer import DiscussionBuffer
 discussion_buffer = DiscussionBuffer()
+from memory_manager import MemoryManager
+memory_manager = MemoryManager()
 
 # Initialize Client
 if SESSION_STRING:
@@ -60,10 +63,18 @@ async def message_handler(client, message):
     memory_text += "\n\nUser Preferences (Learning):\n"
     memory_text += "ACCEPTED Tasks:\n" + "\n".join([f"- [P{t['priority']}] {t['summary']} (from {t['sender']}) " + (f"| Note: {', '.join(t['comments'])}" if t['comments'] else "") for t in preferences['accepted']])
     memory_text += "\nREJECTED Tasks:\n" + "\n".join([f"- [P{t['priority']}] {t['summary']} (from {t['sender']}) " + (f"| Note: {', '.join(t['comments'])}" if t['comments'] else "") for t in preferences['rejected']])
+    
+    # Inject Long-term Memory
+    if ENABLE_LONG_TERM_MEMORY:
+        memory_text += "\n\n" + memory_manager.get_memories_text()
 
     # Analyze with context AND memory
     analysis = await intelligence_agent.analyze_message(context_text, sender, memory_text)
     logger.info(f"Analysis: {analysis}")
+    
+    # SAVE MEMORY
+    if ENABLE_LONG_TERM_MEMORY and analysis.get('save_memory'):
+        memory_manager.add_memory(analysis['save_memory'])
 
     # LOG AUDIT
     try:
@@ -76,10 +87,12 @@ async def message_handler(client, message):
         
     # AUTO-REPLY LOGIC
     # User feedback: "no confirmation messages", "allow disable", "polite tone" (handled by prompt)
-    from config import ENABLE_AUTO_REPLY
-    
     reply_text = analysis.get('reply_text')
     
+    # Check Working Hours (Disable auto-reply during work)
+    current_hour = datetime.now().hour
+    is_working_hours = WORKING_HOURS_START <= current_hour < WORKING_HOURS_END
+
     # Strict safeguards
     should_reply = (
         ENABLE_AUTO_REPLY 
@@ -88,12 +101,18 @@ async def message_handler(client, message):
         and not message.from_user.is_self # Never reply to self (loop safety)
         and "task added" not in reply_text.lower() # Redundant safety check against confirmations
         and "okay" != reply_text.lower().strip()
+        and not is_working_hours # Only reply OFF hours
     )
+
+    if is_working_hours and reply_text:
+        logger.info(f"Auto-Reply suppressed (Working Hours {WORKING_HOURS_START}-{WORKING_HOURS_END}): {reply_text}")
     
     if should_reply:
         try:
             logger.info(f"🤖 Auto-Replying to {sender}: {reply_text}")
-            await message.reply_text(reply_text)
+            # Append disclaimer since we only auto-reply OFF working hours
+            final_text = f"{reply_text}\n\n_(🤖 Auto-reply: Out of working hours)_"
+            await message.reply_text(final_text)
         except Exception as e:
             logger.error(f"Failed to auto-reply: {e}")
 

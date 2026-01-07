@@ -9,6 +9,9 @@ A local AI-powered agent that monitors your Telegram messages, learns your habit
 - **Gemini 3.0 Powered**: Analyzes context, importance, and deadlines.
 - **Context Aware**: Checks your Notion database to avoid duplicates.
 - **Continuous Learning**: Adapts to your preferences based on specific audit corrections.
+- **Long-term Memory**: Remembers who you are and your persistent preferences.
+- **Smart Scheduling**: Automatically extracts deadlines and syncs them to Notion.
+- **Conversation Mode**: Can reply to messages on your behalf (optional).
 
 ### 📚 Notion Integration (SSOT)
 - **Single Source of Truth**: All tasks are stored directly in a Notion Database.
@@ -44,6 +47,7 @@ The agent needs a specific Notion database to store tasks.
         | **Priority** | Number | |
         | **Sender** | Text | |
         | **Link** | URL | |
+        | **Deadline** | Date | |
         | **AgentComments** | Text | Stores discussion/notes |
     - *Note: Property names are case-sensitive.*
 3.  **Create Integration Token**:
@@ -72,6 +76,11 @@ GENAI_KEY=AIzaSy...
 # Notion Credentials
 NOTION_TOKEN=secret_...
 NOTION_DATABASE_ID=a8aec4...2e089
+
+# Feature Toggles
+ENABLE_AUTO_REPLY=False
+ENABLE_LONG_TERM_MEMORY=True
+MEMORY_FILE_PATH=memory.json
 
 # Session String (Generated via python generate_session.py)
 SESSION_STRING=...
@@ -131,6 +140,14 @@ If the message passes, a Task is created in Notion with a **Priority Score**:
 Runs locally at **http://localhost:8000**.
 - **Real-time Sync**: Changes in the dashboard (Done/Reopen) update Notion instantly.
 - **Toast Notifications**: Get feedback on every action.
+- **Memory Visualization**: See what the agent has learned about you.
+
+### 6. Long-term Memory & Learning 🧠
+The agent has two ways of learning:
+1.  **Explicit Facts**: You tell it "I am a backend engineer", and it saves it to `memory.json`.
+2.  **Retrospective Learning**: A background service analyzes your history and corrections to deduce facts automatically (e.g., "User ignores marketing emails").
+    - **Incremental**: Only processes new messages.
+    - **Self-Correcting**: Learns from your manual overrides in the Audit Log.
 
 ---
 

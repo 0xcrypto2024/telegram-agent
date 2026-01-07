@@ -25,7 +25,7 @@ class Agent:
     async def analyze_message(self, message_text: str, sender_info: str, memory_text: str = "") -> dict:
         """
         Analyzes a message to determine importance and generate a summary.
-        Returns a dictionary: { "priority": int, "summary": str, "action_required": bool, "deadline": str, "reply_text": str }
+        Returns a dictionary: { "priority": int, "summary": str, "action_required": bool, "deadline": str, "reply_text": str, "save_memory": str }
         """
         if not self.api_key:
             return {"priority": 0, "summary": "No API Key", "action_required": False}
@@ -75,3 +75,40 @@ class Agent:
         except Exception as e:
             logger.error(f"Error generating summary: {e}")
             return "Failed to generate summary."
+    async def analyze_context_batch(self, history_text: str) -> list:
+        """
+        Analyzes a batch of chat history to extract persistent user facts.
+        Returns a list of strings (facts).
+        """
+        if not history_text: return []
+        
+        prompt = f"""
+        Read the following Telegram chat history.
+        Identify and extract any PERSISTENT facts, identities, roles, or preferences about the user ("Me" or "JZ").
+        
+        Focus on:
+        - Work Context (What projects are they working on?)
+        - Technical Stack (What tools/languages do they use?)
+        - Role (What is their job?)
+        - Strong Preferences (e.g. "I hate calls")
+
+        Ignore:
+        - One-off tasks ("Buy milk")
+        - Temporary states ("I'm tired")
+
+        History:
+        {history_text}
+
+        Output JSON ONLY:
+        {{
+            "facts": ["fact 1", "fact 2"]
+        }}
+        """
+
+        try:
+            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            data = json.loads(response.text)
+            return data.get("facts", [])
+        except Exception as e:
+            logger.error(f"Error analyzing context batch: {e}")
+            return []
