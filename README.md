@@ -44,6 +44,7 @@ The agent needs a specific Notion database to store tasks.
         | **Priority** | Number | |
         | **Sender** | Text | |
         | **Link** | URL | |
+        | **AgentComments** | Text | Stores discussion/notes |
     - *Note: Property names are case-sensitive.*
 3.  **Create Integration Token**:
     - Go to [Notion My Integrations](https://www.notion.so/my-integrations).
