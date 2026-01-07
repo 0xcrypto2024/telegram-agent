@@ -8,6 +8,7 @@ A local AI-powered agent that monitors your Telegram messages, learns your habit
 - **Smart Monitoring**: Listens to "Saved Messages", DMs, **Mentions**, **Replies**, and **Keyword Triggers**.
 - **Gemini 3.0 Powered**: Analyzes context, importance, and deadlines.
 - **Context Aware**: Checks your Notion database to avoid duplicates.
+- **Continuous Learning**: Adapts to your preferences based on specific audit corrections.
 
 ### 📚 Notion Integration (SSOT)
 - **Single Source of Truth**: All tasks are stored directly in a Notion Database.
@@ -20,6 +21,8 @@ A local AI-powered agent that monitors your Telegram messages, learns your habit
 - **Modern UI**: Dark mode, glassmorphism, and smooth animations.
 - **Real-Time**: Fetches live data from Notion.
 - **Visual Cues**: Priority badges, deadlines, and sender info.
+- **Daily Audit**: Review AI evaluations (Hits & Misses) in real-time.
+- **Interactive Review**: Correct "Ignored" messages to teach the AI your preferences.
 - **Daily Briefing**: Sends a summary of Top Tasks to your **Saved Messages** every morning.
 
 ## 🚀 Installation
@@ -109,9 +112,21 @@ Once a message is captured, the **Gemini 3.0** model analyzes it against a stric
 - **Is it new?** (Checks Notion history to avoid duplicates.)
 - **Is it wanted?** (Checks "Rejected" history to filter spammy requests.)
 
-If the message passes, a Task is created in Notion with a **Priority Score (1-10)**.
+If the message passes, a Task is created in Notion with a **Priority Score**:
 
-### 3. The Dashboard
+### 3. Priority System
+- **P0 (Critical)**: Immediate action required.
+- **P1 (High)**: Important but not urgent.
+- **P2 (Medium)**: Standard directive.
+- **P3 (Low)**: Minor task or backlog item.
+- **P4 (Noise)**: Ignored/Filtered out (available in Audit log).
+
+### 4. Continuous Learning (Audit Loop)
+1.  **Transparency**: Every message analyzed is logged in the **Daily Audit** tab.
+2.  **Correction**: You can "Review" an ignored message and manually create a task from it.
+3.  **Adaptation**: The AI reads these manual corrections (Priority & Comments) to understand *why* it missed something, improving accuracy for future messages from that sender or context.
+
+### 5. The Dashboard
 Runs locally at **http://localhost:8000**.
 - **Real-time Sync**: Changes in the dashboard (Done/Reopen) update Notion instantly.
 - **Toast Notifications**: Get feedback on every action.
@@ -125,20 +140,7 @@ Runs locally at **http://localhost:8000**.
 3.  **Check Notion**: The task appears in seconds.
 4.  **Complete it**: Click **Done** on the Dashboard.
 
-## 🍏 Auto-Start (Mac Only)
 
-To make the agent start automatically when you login:
-
-1.  **Copy the plist file**:
-    ```bash
-    cp org.jzbnb.telegram-agent.plist ~/Library/LaunchAgents/
-    ```
-2.  **Load the service**:
-    ```bash
-    launchctl load ~/Library/LaunchAgents/org.jzbnb.telegram-agent.plist
-    ```
-3.  **Check status**:
-    The agent will now run in the background. Logs are available at `agent.log` and `agent.err` in the project folder.
 
 ## 🏗️ Architecture
 
