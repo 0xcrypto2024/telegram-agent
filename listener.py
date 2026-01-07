@@ -357,10 +357,23 @@ async def start_listener():
             text = message.text.lower()
             if any(k.lower() in text for k in dynamic_keywords):
                 return True
+            
+            # Group "Everyone" Check
+            from config import GROUP_TRIGGER_KEYWORDS
+            if message.chat.type in [pyrogram.enums.ChatType.GROUP, pyrogram.enums.ChatType.SUPERGROUP]:
+                 if any(k.lower() in text for k in GROUP_TRIGGER_KEYWORDS):
+                     return True
+
         if message.caption:
             caption = message.caption.lower()
             if any(k.lower() in caption for k in dynamic_keywords):
                 return True
+            
+            # Group "Everyone" Check (Caption)
+            from config import GROUP_TRIGGER_KEYWORDS
+            if message.chat.type in [pyrogram.enums.ChatType.GROUP, pyrogram.enums.ChatType.SUPERGROUP]:
+                 if any(k.lower() in caption for k in GROUP_TRIGGER_KEYWORDS):
+                     return True
                 
         return False
 
